@@ -1,28 +1,28 @@
-// Function to replace [color=...] and [color="..."] BBCode with HTML spans
+// Function to replace [color=...] / [COLOR=...] with optional standard/curly quotes
 function replaceFontColor(text) {
   text ||= "";
   let previousText;
 
   // Regex Explanation:
-  // \[color=       - Matches the opening tag part '[color='
-  // "?             - Optionally matches an opening double quote
-  // ([^\]"]+)     - Captures the color value (group 1):
-  //                 - [^\]"]+ : Matches one or more characters that are NOT ']' or '"'
-  // "?             - Optionally matches a closing double quote
+  // \[color=       - Matches the opening tag part '[color=' (case-insensitive due to 'i' flag)
+  // ["“]?          - Optionally matches an opening standard (") or curly (“) double quote
+  // ([^\]"“”]+)   - Captures the color value (group 1):
+  //                 - [^\]"“”]+ : Matches one or more characters that are NOT ']', standard quote ("), or curly quotes (“”)
+  // ["”]?          - Optionally matches a closing standard (") or curly (”) double quote
   // \]             - Matches the closing bracket of the opening tag
   // (              - Starts capturing the content (group 2)
   //   (?:          - Starts a non-capturing group for the content logic
   //     (?!        - Starts a negative lookahead to prevent matching nested tags prematurely
-  //       \[color="?[^\]"]+"?\]  - Looks ahead for another opening color tag (quoted or not)
+  //       \[color=["“]?[^\]"“”]+["”]?\]  - Looks ahead for another opening color tag (any quotes/case)
   //       |         - OR
-  //       \[\/color\] - Looks ahead for the closing tag
+  //       \[\/color\] - Looks ahead for the closing tag (case-insensitive)
   //     )
   //     [\S\s]     - Matches any character (including newlines)
   //   )*?          - Repeats the non-capturing group zero or more times, non-greedily
   // )              - Ends capturing the content (group 2)
-  // \[\/color\]    - Matches the closing tag '[/color]'
-  // gi             - Global and case-insensitive flags
-  const colorRegex = /\[color="?([^\]"]+)"?\]((?:(?!\[color="?[^\]"]+"?\]|\[\/color\])[\S\s])*?)\[\/color\]/gi;
+  // \[\/color\]    - Matches the closing tag '[/color]' (case-insensitive)
+  // gi             - Global, case-insensitive flags
+  const colorRegex = /\[color=["“]?([^\]"“”]+)["”]?\]((?:(?!\[color=["“]?[^\]"“”]+["”]?\]|\[\/color\])[\S\s])*?)\[\/color\]/gi;
 
 
   do {
@@ -36,13 +36,13 @@ function replaceFontColor(text) {
   return text;
 }
 
-// Function to replace [bgcolor=...] and [bgcolor="..."] BBCode with HTML spans
+// Function to replace [bgcolor=...] / [BGCOLOR=...] with optional standard/curly quotes
 function replaceFontBgColor(text) {
   text ||= "";
   let previousText;
 
   // Regex follows the same logic as replaceFontColor, just for 'bgcolor'
-  const bgColorRegex = /\[bgcolor="?([^\]"]+)"?\]((?:(?!\[bgcolor="?[^\]"]+"?\]|\[\/bgcolor\])[\S\s])*?)\[\/bgcolor\]/gi;
+  const bgColorRegex = /\[bgcolor=["“]?([^\]"“”]+)["”]?\]((?:(?!\[bgcolor=["“]?[^\]"“”]+["”]?\]|\[\/bgcolor\])[\S\s])*?)\[\/bgcolor\]/gi;
 
   do {
     previousText = text;
@@ -56,15 +56,13 @@ function replaceFontBgColor(text) {
 }
 
 export function setup(helper) {
-  // Allowlist remains the same, it validates the *output* style attribute
+  // Allowlist remains the same
   helper.allowList({
     custom(tag, name, value) {
       if (tag === "span" && name === "style") {
-        // Allows style="color:..." or style="background-color:..."
-        // Allows named colors, hex codes (#fff, #ffffff)
         return /^(background-)?color\s*:\s*#?[a-zA-Z0-9]+$/.exec(value);
       }
-      return false; // Deny other custom styles
+      return false;
     },
   });
 
@@ -74,16 +72,16 @@ export function setup(helper) {
 
   if (helper.markdownIt) {
     helper.registerPlugin((md) => {
-      // No changes needed here assuming markdown-it-bbcode handles quoted attributes
-      // It typically parses [tag="value"] correctly and places 'value' in tagInfo.attrs._default
+      // No changes needed here. Relies on markdown-it-bbcode's capabilities.
+      // It typically handles case-insensitivity for tags.
+      // Handling of curly quotes depends entirely on the markdown-it-bbcode parser itself.
       const ruler = md.inline.bbcode.ruler;
 
       ruler.push("bgcolor", {
-        tag: "bgcolor",
+        tag: "bgcolor", // Tag name here might be case-sensitive depending on plugin config, but matching is usually case-insensitive
         wrap: function (token, endToken, tagInfo) {
           token.type = "span_open";
           token.tag = "span";
-          // Ensure trimming for safety, though likely already handled by parser
           token.attrs = [
             ["style", "background-color:" + tagInfo.attrs._default.trim()],
           ];
@@ -102,7 +100,6 @@ export function setup(helper) {
         wrap: function (token, endToken, tagInfo) {
           token.type = "span_open";
           token.tag = "span";
-          // Ensure trimming for safety
           token.attrs = [["style", "color:" + tagInfo.attrs._default.trim()]];
           token.content = "";
           token.nesting = 1;
@@ -115,7 +112,7 @@ export function setup(helper) {
       });
     });
   } else {
-    // Use the updated pre-processors for the fallback scenario
+    // Use the updated pre-processors supporting case-insensitivity and curly quotes
     helper.addPreProcessor((text) => replaceFontColor(text));
     helper.addPreProcessor((text) => replaceFontBgColor(text));
   }
